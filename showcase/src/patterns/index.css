@@ -72,6 +72,9 @@
   fill: none;
   stroke: #27ae60;
   stroke-width: 2px;
+  position: relative;
+  top: 4px;
+  right: -2px;
 }
 
 .icon.checked {
