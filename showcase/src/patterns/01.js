@@ -10,7 +10,6 @@ const initialState = {
 
 
 /**
- * 
  * Higher Order component
  */
 
