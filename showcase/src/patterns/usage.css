@@ -7,8 +7,11 @@
  /* count */ 
 .count {
     background: #896EAF; 
+    color: white;
 }
-
+.icon {
+    background: #896EAF;
+}
  /* clap */ 
 .clap {
     border: 1px solid #896EAF; 
