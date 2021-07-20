@@ -120,6 +120,12 @@ const useDOMRef = () => {
 
 }
 
+const executeInSequence = (...fns) => {
+    return (...args) => {
+        fns.forEach(fn => fn(...args));
+
+    }
+};
 
 /**
  * useClapState custom hook
@@ -141,21 +147,24 @@ const useClapSate = (initialState = INITIAL_STATE) => {
         }))
     }, []);
 
-    const toggleProps = {
-        onClick: updateClapState,
+    const getToggleProps = ({onClick, ...otherProps}) => ({
+        onClick: executeInSequence(updateClapState, onClick),
         'aria-pressed': clapState.isClicked,
-    };
+        ...otherProps,
+    });
 
-    const clapCountProps = {
+    const getClapCountProps = () => ({
         count: clapState.count,
         'aria-valuemax': MAXIMUM_USER_CLAP,
         'aria-valuemin': 0,
         'aria-valuenow': clapState.count
-    };
+    });
 
-    return {clapState, updateClapState, toggleProps, clapCountProps};
+    return {clapState, updateClapState, getToggleProps, getClapCountProps};
 
 }
+
+
 
 const useEffectAfterMount = (callback, deps) => {
     const componentJustMounted = useRef(true)
@@ -181,7 +190,7 @@ const ClapWrapper = ({children, setRef, onClick, ...restProps}) => {
 }
 
 const MediumClap = () => {
-    const {clapState, toggleProps, clapCountProps} = useClapSate();
+    const {clapState, getToggleProps, getClapCountProps} = useClapSate();
     const { count, countTotal, isClicked } = clapState
     const [{ clapRef, clapCountRef, clapTotalRef }, setRef] = useDOMRef();
 
@@ -195,6 +204,10 @@ const MediumClap = () => {
         animationTimeline.replay();
     }, [clapState]);
 
+    const onClick = useCallback(() => {
+        console.log('Clicked!!!');
+    },[]);
+
     return (
         // <button
         //     ref={setRef}
@@ -202,9 +215,9 @@ const MediumClap = () => {
         //     className={styles.clap}
         //     onClick={updateClapState}
         // >
-        <ClapWrapper setRef={setRef} data-refkey='clapRef' {...toggleProps}>
+        <ClapWrapper setRef={setRef} data-refkey='clapRef' {...getToggleProps({onClick})}>
             <ClapIcon isClicked={isClicked} />
-            <ClapCount count={count} setRef={setRef} data-refkey='clapCountRef' {...clapCountProps}/>
+            <ClapCount count={count} setRef={setRef} data-refkey='clapCountRef' {...getClapCountProps()}/>
             <CountTotal countTotal={countTotal} setRef={setRef} data-refkey='clapTotalRef'/>
         </ClapWrapper>
 
