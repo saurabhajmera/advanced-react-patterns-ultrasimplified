@@ -129,15 +129,26 @@ const callFnsInSequence = (...fns) => (...args) => {
   fns.forEach(fn => fn && fn(...args))
 }
 
+
+const usePrevious = (value) => {
+  const ref = useRef();
+
+  useEffect(() => {
+    ref.current = value;
+  });
+
+  return ref.current;
+}
+
 /**
  * custom hook for useClapState
  */
 const useClapState = (initialState = INITIAL_STATE) => {
   const MAXIMUM_USER_CLAP = 50
-  const userInitialState = useRef(initialState)
-
   const [clapState, setClapState] = useState(initialState)
+  const initialStateValueRef = useRef(initialState);
   const { count, countTotal } = clapState
+  const resetDep = useRef(0);
 
   const updateClapState = useCallback(() => {
     setClapState(({ count, countTotal }) => ({
@@ -147,15 +158,11 @@ const useClapState = (initialState = INITIAL_STATE) => {
     }))
   }, [count, countTotal])
 
-  const reset = useCallback(() => {
-    setClapState(userInitialState.current)
-  }, [setClapState])
-
   const getTogglerProps = ({ onClick, ...otherProps } = {}) => ({
     onClick: callFnsInSequence(updateClapState, onClick),
     'aria-pressed': clapState.isClicked,
     ...otherProps
-  })
+  });
 
   const getCounterProps = ({ ...otherProps }) => ({
     count,
@@ -163,9 +170,19 @@ const useClapState = (initialState = INITIAL_STATE) => {
     'aria-valuemin': 0,
     'aria-valuenow': count,
     ...otherProps
-  })
+  });
 
-  return { clapState, updateClapState, getTogglerProps, getCounterProps, reset }
+  const previousCount = usePrevious(count);
+
+  const resetState = useCallback(() => {
+    if(previousCount !== count){
+      setClapState(initialStateValueRef.current);
+      resetDep.current++;
+    }
+
+  }, [setClapState, previousCount, count]);
+
+  return { clapState, updateClapState, getTogglerProps, getCounterProps, resetState, resetDep:resetDep.current }
 }
 
 /**
@@ -180,6 +197,9 @@ const useEffectAfterMount = (cb, deps) => {
     componentJustMounted.current = false
   }, deps)
 }
+
+
+
 
 /**
  * subcomponents
@@ -227,69 +247,82 @@ const CountTotal = ({ countTotal, setRef, ...restProps }) => {
   )
 }
 
-/**
- * Usage
- */
-const userInitialState = {
+const initialStateValue = {
   count: 0,
-  countTotal: 1000,
+  countTotal: 0,
   isClicked: false
 }
 
+/**
+ * Usage
+ */
 const Usage = () => {
-  const { clapState, getTogglerProps, getCounterProps, reset } = useClapState(
-    userInitialState
-  )
+  const { clapState, getTogglerProps, getCounterProps, resetState, resetDep } = useClapState(initialStateValue);
 
-  const { count, countTotal, isClicked } = clapState
+  const { count, countTotal, isClicked } = clapState;
 
-  const [{ clapRef, clapCountRef, clapTotalRef }, setRef] = useDOMRef()
+  const [{ clapRef, clapCountRef, clapTotalRef }, setRef] = useDOMRef();
+
+  const [uploadingReset, setUpload] = useState(false);
 
   const animationTimeline = useClapAnimation({
     clapEl: clapRef,
     countEl: clapCountRef,
     clapTotalEl: clapTotalRef
-  })
+  });
 
   useEffectAfterMount(() => {
     animationTimeline.replay()
-  }, [count])
+  }, [count]);
+
+  useEffectAfterMount(() => {
+    setUpload(true);
+
+    const id = setTimeout(() => {
+      setUpload(false);
+    }, 3000);
+
+    return () => clearTimeout(id);
+
+  }, [resetDep]);
 
   const handleClick = () => {
     console.log('CLICKED!!!!')
-  }
+  };
 
   return (
     <div>
-      <ClapContainer
+    <ClapContainer
+      setRef={setRef}
+      data-refkey='clapRef'
+      {...getTogglerProps({
+        onClick: handleClick,
+        'aria-pressed': false
+      })}
+    >
+      <ClapIcon isClicked={isClicked} />
+      <ClapCount
         setRef={setRef}
-        data-refkey='clapRef'
-        {...getTogglerProps({
-          onClick: handleClick,
-          'aria-pressed': false
-        })}
-      >
-        <ClapIcon isClicked={isClicked} />
-        <ClapCount
-          setRef={setRef}
-          data-refkey='clapCountRef'
-          {...getCounterProps()}
-        />
-        <CountTotal
-          countTotal={countTotal}
-          setRef={setRef}
-          data-refkey='clapTotalRef'
-        />
-      </ClapContainer>
-      <section>
-        <button onClick={reset} className={userStyles.resetBtn}>
-          reset
-        </button>
-        <pre className={userStyles.resetMsg}>
-          {JSON.stringify({ count, countTotal, isClicked })}
-        </pre>
-      </section>
+        data-refkey='clapCountRef'
+        {...getCounterProps()}
+      />
+      <CountTotal
+        countTotal={countTotal}
+        setRef={setRef}
+        data-refkey='clapTotalRef'
+      />
+    </ClapContainer>
+    <button onClick={resetState}>
+      reset
+    </button>
+    <pre>
+      {JSON.stringify(clapState)}
+    </pre>
+    <pre className={userStyles.resetMsg}>
+      {uploadingReset ? `uploading reset ${resetDep} ...`: ''}
+
+    </pre>
     </div>
   )
-}
+};
 export default Usage
